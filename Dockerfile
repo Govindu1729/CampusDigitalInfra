@@ -45,10 +45,10 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# Create directory for persistent sqlite data/uploads if needed
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+# Ensure nextjs user owns and can write to database files and directories
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data && chmod -R 775 /app/prisma
 
 USER nextjs
 

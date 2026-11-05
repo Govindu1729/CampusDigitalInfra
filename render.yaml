@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: campus-digital-infra
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NODE_ENV
+        value: "production"
+      - key: DATABASE_URL
+        value: "file:/app/prisma/dev.db"
+      - key: COOKIE_SECRET
+        generateValue: true
+      - key: APP_BASE_URL
+        value: "https://campus-digital-infra.onrender.com"
+      - key: MAINTENANCE_MODE
+        value: "false"
+      - key: UPLOAD_ENABLED
+        value: "true"
+      - key: CAPTCHA_PROVIDER
+        value: "disabled"
+    autoDeploy: true
+
+    # Optional persistent disk for Render Starter plan ($7/mo + $1/mo disk):
+    # disk:
+    #   name: mrs-data
+    #   mountPath: /app/data
+    #   sizeGB: 1
