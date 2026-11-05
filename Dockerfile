@@ -6,11 +6,11 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 # Copy dependency manifests
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 # Copy prisma schema so prisma client generation can occur
 COPY prisma ./prisma/
 
-RUN npm ci
+RUN npm install
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
