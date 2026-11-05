@@ -319,7 +319,7 @@ export default function DedicatedChatPage() {
     });
     const data = await res.json();
     if (data.success) {
-      fetchChat();
+      await fetchTicketDetails(true);
     } else {
       throw new Error(data.error || "Failed to send message with photo");
     }

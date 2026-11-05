@@ -920,7 +920,7 @@ function SingleTicketTrackContent() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={fetchRequest}
+            onClick={() => fetchRequest()}
             className="inline-flex items-center text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs transition-colors cursor-pointer shrink-0"
           >
             <RefreshCw className="w-3.5 h-3.5 mr-1" />

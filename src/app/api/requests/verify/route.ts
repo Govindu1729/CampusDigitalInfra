@@ -40,7 +40,10 @@ export async function POST(req: NextRequest) {
       const cleanPhone = phone.replace(/\D/g, "").slice(-10);
 
       const emailMatches = cleanEmail === request.requesterEmail.toLowerCase();
-      const phoneMatches = cleanPhone === request.requesterPhone.replace(/\D/g, "").slice(-10);
+      const phoneMatches = Boolean(
+        request.requesterPhone &&
+        cleanPhone === request.requesterPhone.replace(/\D/g, "").slice(-10)
+      );
 
       if (emailMatches && phoneMatches) {
         return NextResponse.json({

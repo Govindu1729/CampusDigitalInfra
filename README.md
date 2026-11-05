@@ -1,4 +1,4 @@
-CampusDigitalInfra
+# CampusDigitalInfra — IITGN Maintenance Request System (MRS) — Modern Operations Portal
 
 > **Institute Works Department (IWD)**  
 > **Indian Institute of Technology Gandhinagar (IITGN)**  
@@ -696,4 +696,33 @@ export const LIFECYCLE_CONFIG = {
 │ • One-click "Reopen (In Progress)" button              │
 └────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 20. Docker Deployment (Container Wrapper)
+
+A production-ready multi-stage `Dockerfile` and `docker-compose.yml` are included for convenient containerized deployment.
+
+### Using Docker Compose
+```bash
+# Build and run the container
+docker compose up -d --build
+
+# View logs
+docker compose logs -f app
+```
+
+### Using Docker CLI directly
+```bash
+# Build the production image
+docker build -t campus-digital-infra:latest .
+
+# Run the container
+docker run -d -p 3000:3000 \
+  -e DATABASE_URL="file:/app/data/dev.db" \
+  -e COOKIE_SECRET="your-cookie-secret" \
+  -v campus_data:/app/data \
+  campus-digital-infra:latest
+```
+
 

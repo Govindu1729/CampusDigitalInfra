@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: campus-mrs-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db}
+      - COOKIE_SECRET=${COOKIE_SECRET:-mrs-production-secret-change-me}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:3000}
+    volumes:
+      - mrs_data:/app/data
+    networks:
+      - mrs-net
+
+volumes:
+  mrs_data:
+    driver: local
+
+networks:
+  mrs-net:
+    driver: bridge
