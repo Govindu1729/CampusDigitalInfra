@@ -1,0 +1,163 @@
+import { prisma } from "@/lib/prisma";
+import {
+  LIFECYCLE_CONFIG,
+  calculatePurgeDate,
+} from "@/config/lifecycle";
+
+export interface ArchivalSweepResult {
+  archivedAdminClosedCount: number;
+  archivedUserClosedCount: number;
+  purgedCount: number;
+  processedAt: string;
+}
+
+/**
+ * Transfers a single maintenance request to secondary archival storage and removes it from the active database.
+ */
+export async function archiveSingleRequest(requestId: string) {
+  const req = await prisma.maintenanceRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      department: true,
+      assignedStaff: true,
+      attachments: true,
+      statusEvents: {
+        orderBy: { createdAt: "asc" },
+      },
+      followUps: {
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+
+  if (!req) return null;
+
+  const now = new Date();
+  const closedAt = req.closedAt || now;
+  const purgeDueAt = calculatePurgeDate(now);
+
+  const archived = await prisma.archivedRequest.create({
+    data: {
+      ticketNumber: req.ticketNumber,
+      trackingToken: req.trackingToken,
+      category: req.category,
+      departmentId: req.departmentId,
+      departmentName: req.department?.name,
+      domain: req.domain,
+      subDomain1: req.subDomain1,
+      subDomain2: req.subDomain2,
+      requesterName: req.requesterName,
+      requesterEmail: req.requesterEmail,
+      requesterPhone: req.requesterPhone,
+      locationCategory: req.locationCategory,
+      locationDetail: req.locationDetail,
+      corridor: req.corridor,
+      availability: req.availability,
+      subject: req.subject,
+      description: req.description,
+      priority: req.priority,
+      status: "CLOSED",
+      closedByRole: req.closedByRole || "admin",
+      closedAt,
+      archivedAt: now,
+      purgeDueAt,
+      statusEventsJson: JSON.stringify(req.statusEvents),
+      followUpsJson: JSON.stringify(req.followUps),
+      attachmentsJson: JSON.stringify(req.attachments),
+      assignedStaffName: req.assignedStaff?.name || null,
+      assignedStaffEmail: req.assignedStaff?.email || null,
+      reopenCount: req.reopenCount,
+      satisfactionRating: req.satisfactionRating,
+      feedbackComments: req.feedbackComments,
+      originalCreatedAt: req.createdAt,
+    },
+  });
+
+  // Remove from active operational database
+  await prisma.maintenanceRequest.delete({
+    where: { id: req.id },
+  });
+
+  return archived;
+}
+
+/**
+ * Sweeps the database according to institutional lifecycle rules:
+ * 1. Closed requests older than 3 days (cooldown expired) -> transferred to secondary storage.
+ * 2. Archived requests older than 180 days -> permanently purged.
+ */
+export async function checkAndRunArchivalSweep(): Promise<ArchivalSweepResult> {
+  const now = new Date();
+
+  // Closed requests due for secondary archival storage (> 3 days cooldown expired)
+  const threeDaysCooldownThreshold = new Date(
+    now.getTime() - LIFECYCLE_CONFIG.ADMIN_CLOSED_REOPEN_GRACE_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  const closedDueCandidates = await prisma.maintenanceRequest.findMany({
+    where: {
+      status: "CLOSED",
+      closedAt: { lte: threeDaysCooldownThreshold },
+    },
+    select: { id: true, closedByRole: true },
+  });
+
+  let archivedAdminClosedCount = 0;
+  let archivedUserClosedCount = 0;
+  for (const c of closedDueCandidates) {
+    try {
+      await archiveSingleRequest(c.id);
+      if (c.closedByRole === "requester") {
+        archivedUserClosedCount++;
+      } else {
+        archivedAdminClosedCount++;
+      }
+    } catch (e) {
+      console.error(`Failed to archive closed request ${c.id}:`, e);
+    }
+  }
+
+  // 3. Purge expired records from secondary database (> 180 days)
+  const purgeResult = await prisma.archivedRequest.deleteMany({
+    where: {
+      purgeDueAt: { lte: now },
+    },
+  });
+
+  return {
+    archivedAdminClosedCount,
+    archivedUserClosedCount,
+    purgedCount: purgeResult.count,
+    processedAt: now.toISOString(),
+  };
+}
+
+/**
+ * Retrieves archived requests from the secondary database for administrative review.
+ */
+export async function getArchivedRequests(limit: number = 100) {
+  return prisma.archivedRequest.findMany({
+    take: limit,
+    orderBy: { archivedAt: "desc" },
+  });
+}
+
+/**
+ * Retrieves a single archived request by ticket number.
+ */
+export async function getArchivedRequestByTicket(ticketNumber: string) {
+  const cleanNum = ticketNumber.trim().toUpperCase();
+  const archived = await prisma.archivedRequest.findUnique({
+    where: { ticketNumber: cleanNum },
+  });
+
+  if (!archived) return null;
+
+  return {
+    ...archived,
+    statusEvents: JSON.parse(archived.statusEventsJson || "[]"),
+    followUps: JSON.parse(archived.followUpsJson || "[]"),
+    attachments: JSON.parse(archived.attachmentsJson || "[]"),
+    isArchived: true,
+  };
+}

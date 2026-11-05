@@ -1,0 +1,289 @@
+// IITGN Maintenance Request System (MRS) - Prisma Database Schema
+// Extensible RBAC (Role-Based Access Control) + Departments + Requests
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// RBAC & Access Schema (Configurable & Extensible)
+// -------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(cuid())
+  code        String   @unique // OVERALL_ADMIN, DEPT_ADMIN, DEPT_STAFF, AUDITOR
+  name        String   // "Overall Admin", "Department Admin", "Department Staff"
+  level       Int      // 1 = Overall Admin (Level 1), 2 = Department Admin (Level 2), 3 = Department Staff
+  description String
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g. COMPLAINT_VIEW_ALL, COMPLAINT_ASSIGN, USER_MANAGE
+  name        String
+  category    String   // "complaints", "departments", "users", "system", "analytics"
+  description String
+  createdAt   DateTime @default(now())
+
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  code        String   @unique // ELEC, CIVIL, PLUMB, HVAC, COOLER, CARP, IT
+  name        String   // Electrical, Civil, Plumbing & Sanitary, Air-Conditioning, etc.
+  description String?
+  leadEmail   String?
+  leadPhone   String?
+  slaHoursL1  Int      @default(24)  // Hours before escalation to Level 1 AEE
+  slaHoursL2  Int      @default(72)  // Hours before escalation to Level 2 EE
+  slaHoursL3  Int      @default(168) // Hours before escalation to Level 3 SE
+  icon        String?  // lucide icon identifier
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  requests    MaintenanceRequest[]
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  name           String
+  phone          String?
+  defaultSharePhone Boolean  @default(true) // Resident default consent for sharing phone with technicians
+  passwordHash   String?
+  roleId         String
+  departmentId   String?     // Nullable: null for Overall Admin (spans all departments), set for Dept Admin & Staff
+  active         Boolean     @default(true)
+  avatarUrl      String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  lastLoginAt    DateTime?
+
+  role           Role        @relation(fields: [roleId], references: [id])
+  department     Department? @relation(fields: [departmentId], references: [id])
+
+  assignedRequests MaintenanceRequest[] @relation("AssignedStaff")
+  statusEvents     StatusEvent[]        @relation("ActionBy")
+  followUps        FollowUpComment[]    @relation("CommentAuthor")
+}
+
+// -------------------------------------------------------------
+// Maintenance Requests / Complaints Core Schema
+// -------------------------------------------------------------
+
+model MaintenanceRequest {
+  id                  String      @id @default(cuid())
+  ticketNumber        String      @unique // e.g. "IITGN-2026-0001"
+  trackingToken       String      // Secret access token for requester tracking
+  category            String      // housing, academic, hostel, jeet_hostel, infrastructure, etc.
+  departmentId        String
+  domain              String      // e.g. Electrical, Civil, Air-Conditioning, Water-Cooler
+  subDomain1          String      // Cascading level 1
+  subDomain2          String?     // Cascading level 2
+
+  // Requester information (Open access - email is default primary; phone is optional)
+  requesterName       String
+  requesterEmail      String
+  requesterPhone      String? // Optional / non-mandatory for resident privacy
+  sharePhoneWithStaff Boolean @default(true) // Resident toggle: share phone with technician/staff
+
+  // Location details
+  locationCategory    String      // "Hostel", "Apartment", "Academic Complex", "Infrastructure"
+  locationDetail      String      // e.g. "Aibaan - Room 304", "01/101", "Academic Block 3 / Room 204"
+  corridor            String?     // Optional corridor (fixes legacy bug)
+  availability        String      // Availability window for visit
+
+  // Content
+  subject             String
+  description         String
+  priority            String      @default("NORMAL") // NORMAL, HIGH, EMERGENCY
+  isUrgent            Boolean     @default(false)
+  status              String      @default("SUBMITTED") // SUBMITTED, ACKNOWLEDGED, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED, REOPENED, INVALID
+
+  // Assignments & Staff
+  assignedStaffId     String?
+  satisfactionRating  Int?        // 1 to 5
+  feedbackComments    String?
+  reopenCount         Int         @default(0)
+  reopenReason        String?
+
+  // Escalation tracking
+  escalationLevel     Int         @default(0) // 0 = Normal, 1 = L1 AEE, 2 = L2 EE, 3 = L3 SE
+  escalatedAt         DateTime?
+  escalationNote      String?
+
+  // Anti-abuse & audit
+  ipAddressHash       String?
+
+  // SuperApp Global Calendar Integration
+  calendarEventId     String?
+  scheduledStartAt    DateTime?
+  scheduledEndAt      DateTime?
+
+  // Timestamps
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  acknowledgedAt      DateTime?
+  assignedAt          DateTime?
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  closedByRole        String?     // "admin" | "staff" | "requester"
+
+  department          Department  @relation(fields: [departmentId], references: [id])
+  assignedStaff       User?       @relation("AssignedStaff", fields: [assignedStaffId], references: [id])
+  attachments         Attachment[]
+  followUps           FollowUpComment[]
+  statusEvents        StatusEvent[]
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([requesterEmail])
+  @@index([createdAt])
+}
+
+model Attachment {
+  id           String             @id @default(cuid())
+  requestId    String
+  url          String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  isAfterPhoto Boolean            @default(false)
+  uploadedAt   DateTime           @default(now())
+
+  request      MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model FollowUpComment {
+  id                  String             @id @default(cuid())
+  requestId           String
+  authorName          String
+  authorRole          String             // "requester", "staff", "admin", "system"
+  authorUserId        String?
+  isInternalStaffOnly Boolean            @default(false) // Staff-only private notes
+  message             String
+  createdAt           DateTime           @default(now())
+
+  request             MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorUser          User?              @relation("CommentAuthor", fields: [authorUserId], references: [id])
+}
+
+model StatusEvent {
+  id             String             @id @default(cuid())
+  requestId      String
+  performedById  String?
+  performedByName String
+  eventType      String             // "STATUS_CHANGE", "ASSIGNMENT", "ESCALATION", "REOPEN", "PRIORITY_CHANGE", "NOTE"
+  fromStatus     String?
+  toStatus       String?
+  note           String?
+  createdAt      DateTime           @default(now())
+
+  request        MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  performedBy    User?              @relation("ActionBy", fields: [performedById], references: [id])
+
+  @@index([requestId])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  category    String   @default("general")
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model ComplaintCategory {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  shortDescription String
+  icon             String   @default("Home")
+  locationType     String   @default("general") // "apartment" | "hostel" | "academic" | "general"
+  hasCorridor      Boolean  @default(false)
+  allowedDomains   String   @default("[\"Electrical\",\"Civil\",\"Plumbing\"]") // JSON array string
+  locationOptions  String   @default("[]") // JSON array of custom buildings/complexes/hostels/units
+  instructions     String?  // Custom guidance or instructions for students/residents
+  responseTimeText String   @default("Avg Response: < 24 hrs") // Response time SLA banner text
+  bannerNotice     String?  // Emergency or announcement notice banner
+  urgencyPrompt    String?  // Custom emergency notice
+  customCascades   String   @default("{}") // JSON string of custom domain -> sub1 -> sub2 extensions
+  displayOrder     Int      @default(0)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ArchivedRequest {
+  id                  String      @id @default(cuid())
+  ticketNumber        String      @unique
+  trackingToken       String
+  category            String
+  departmentId        String
+  departmentName      String?
+  domain              String
+  subDomain1          String
+  subDomain2          String?
+  requesterName       String
+  requesterEmail      String
+  requesterPhone      String?
+  sharePhoneWithStaff Boolean     @default(true)
+  locationCategory    String
+  locationDetail      String
+  corridor            String?
+  availability        String?
+  subject             String
+  description         String
+  priority            String
+  status              String      @default("CLOSED")
+  closedByRole        String      @default("admin") // "admin" | "staff" | "requester"
+  closedAt            DateTime
+  archivedAt          DateTime    @default(now())
+  purgeDueAt          DateTime    // archivedAt + 180 days
+  
+  // Serialized snapshots for complete zero-loss retention
+  statusEventsJson    String      @default("[]")
+  followUpsJson       String      @default("[]")
+  attachmentsJson     String      @default("[]")
+  assignedStaffName   String?
+  assignedStaffEmail  String?
+  reopenCount         Int         @default(0)
+  satisfactionRating  Int?
+  feedbackComments    String?
+  
+  originalCreatedAt   DateTime
+  updatedAt           DateTime    @updatedAt
+
+  @@index([ticketNumber])
+  @@index([purgeDueAt])
+  @@index([requesterEmail])
+  @@index([archivedAt])
+}
+

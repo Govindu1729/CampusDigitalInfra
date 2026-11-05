@@ -1,0 +1,117 @@
+<!-- LEGACY SNAPSHOT (reference only, do not edit or ship).
+Reconstructed from page source of maintenance.iitgn.ac.in: markup, field names,
+validation and AJAX flow kept; commented-out dead code removed. -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>IITGN - Maintenance Request System</title>
+<link rel="stylesheet" href="css/bootstrap.min.css"><link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/hostel.css"><!-- plus responsiveform*.css media-query hacks -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script>
+$(document).ready(function(){
+  $(".refresh").click(function(){ $(".imgcaptcha").attr("src","demo_captcha.php?_="+(new Date().getTime())); });
+  $('#myForm').on('submit',function(e){
+    e.preventDefault();
+    var name=$('#name').val(); if(name==""){alert("Please enter your name");$('#name').focus();return false;}
+    var emailReg=/^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})?$/;   // allows empty string; iitgn-only check is commented out
+    var emailaddressVal=$("#email").val();
+    if(emailaddressVal==''){alert("Please enter your valid email id");$('#email').focus();return false;}
+    else if(!emailReg.test(emailaddressVal)){alert("Please enter a valid email id");$('#email').focus();return false;}
+    var phone=$('#contact').val().replace(/[^0-9]/g,'');
+    if(phone.length!=10){alert('Mobile number must be 10 digits.');$('#contact').focus();return false;}
+    var subject=$('#subject').val(); if(subject==""){alert("Please enter subject");$('#subject').focus();return false;}
+    var spec_loc=$('#spec_loc').val(); if(spec_loc==""){alert("Please enter specific location (Building/Room No.)");$('#spec_loc').focus();return false;}
+    var availability=$('#availability').val(); if(availability==""){alert("Please enter your available time");$('#availability').focus();return false;}
+    var s1=$('#s1').val(); if(s1==""){alert("Please select domain");$('#s1').focus();return false;}
+    var s2=$('#s2').val(); if(s2==""){alert("Please select sub-domain-1");$('#s2').focus();return false;}
+    var s3=$('#s3').val(); if(s3==""){alert("Please select sub-domain-2");$('#s3').focus();return false;}
+    var captcha=$.trim($("#captcha").val()); if(captcha===""){alert("Please enter captcha code");$('#captcha').focus();return false;}
+    var maintenance=$('#maintenance').val();
+    $.ajax({
+      url:"submit_academic_captcha.php", type:"POST", dataType:"text",
+      data:{ name:name, email:emailaddressVal, contact:phone, subject:subject, spec_loc:spec_loc, availability:availability, country:s1, state:s2, city:s3, maintenance:maintenance, captcha:captcha },
+      success:function(response){
+        if(response==0){ alert("wrong captcha code!"); $("#MyEdit").html("wrong captcha code!"); }
+        else if(response==2){ alert("We have some technical problem during request submission. Please fill the maintenance request form after some time."); $("#MyEdit").html("We have some technical problem ..."); }
+        else { $(".imgcaptcha").attr("src","demo_captcha.php?_="+(new Date().getTime())); clear_form(); alert("Your query has been submitted successfully."); $("#MyEdit").html(response); /* server HTML injected */ }
+      },
+      error:function(xhr,status,error){ console.log("AJAX ERROR:",status,error); }
+    });
+    return false;
+  });
+  function clear_form(){ /* clears name,email,contact,subject,location fields,availability,s1,s2,s3,maintenance */ }
+});
+</script>
+<script>
+function ajaxFunction(choice){
+  var httpxml; try{httpxml=new XMLHttpRequest();}catch(e){ /* legacy ActiveX fallbacks omitted */ alert("Your browser does not support AJAX!"); return false; }
+  function stateChanged(){
+    if(httpxml.readyState==4){
+      var myObject=JSON.parse(httpxml.responseText);   // {value:{state1,city1}, state:[...], city:[...]}
+      for(j=document.myForm.state.options.length-1;j>=0;j--) document.myForm.state.remove(j);
+      var state1=myObject.value.state1;
+      var optn=document.createElement("OPTION"); optn.text='Select Sub Domain-1'; optn.value=''; document.myForm.state.options.add(optn);
+      for(i=0;i<myObject.state.length;i++){
+        var optn=document.createElement("OPTION"); optn.text=myObject.state[i]; optn.value=myObject.state[i];
+        document.myForm.state.options.add(optn);
+        if(optn.value==state1){ document.myForm.state.options[i+1].selected=true; }
+      }
+      for(j=document.myForm.city.options.length-1;j>=0;j--) document.myForm.city.remove(j);
+      var city1=myObject.value.city1;
+      for(i=0;i<myObject.city.length;i++){
+        var optn=document.createElement("OPTION"); optn.text=myObject.city[i]; optn.value=myObject.city[i];
+        document.myForm.city.options.add(optn);
+        if(optn.value==city1){ document.myForm.city.options[i].selected=true; }
+      }
+      // NOTE: #txtHint does not exist in the page -> likely TypeError here (legacy bug)
+      document.getElementById("txtHint").style.background='#00f040';
+      document.getElementById("txtHint").innerHTML='done';
+    }
+  }
+  var url="ajax-dd3ck.php"; var country=myForm.country.value;
+  if(choice!='s1'){var state=myForm.state.value;var city=myForm.city.value;}else{var state='';var city='';}
+  url=url+"?country="+country+"&state="+state+"&city="+city+"&type=academics&id="+Math.random();
+  myForm.st.value=state;
+  document.getElementById("txtHint2").innerHTML=url;
+  httpxml.onreadystatechange=stateChanged; httpxml.open("GET",url,true); httpxml.send(null);
+  document.getElementById("txtHint").innerHTML="Please Wait....";   // also null in legacy pages
+}
+</script>
+</head>
+<body style="background:url(images/bg_ac.jpg)">
+<header><h3 style="margin-top:50px;color:#99FF33;font-size:50px;">Maintenance Request System</h3><p style="font-size:30px;color:#FFFFFF;">IIT Gandhinagar</p></header><hr>
+<div id="MyEdit" style="color:#FFFFFF;background:#0066FF;text-align:left;"></div>
+<a href="index.php" title="Home"><img src="images/home.png" width="50" height="50"></a>
+<h2 style="text-align:center;">Academic Maintenance Form</h2>
+<form name="myForm" id="myForm" method="post" action="#null">
+<table style="width:90%;" align="center">
+<tr>
+  <td><label>Your Name</label><input type="text" name="name" id="name" placeholder="name"></td>
+  <td><label>Email Id</label><input type="text" name="email" id="email" placeholder="emailid@iitgn.ac.in"></td>
+  <td><label>Mobile Number</label><input type="text" name="contact" id="contact" maxlength="10"></td>
+</tr>
+<tr>
+  <td><label>Subject</label><input type="text" id="subject" name="subject" placeholder="subject"></td>
+  <td><label>Specific Location (Building/Room No. etc.)</label><input type="text" placeholder="Ex: 4/203" id="spec_loc" name="spec_loc"></td>
+</tr>
+<input type="hidden" name="st" value="0">
+<tr>
+  <td><label>Domain</label><select name="country" id="s1" onchange="ajaxFunction('s1');"><option value="">Select Domain</option><option value=Civil>Civil</option><option value=Electrical>Electrical</option><option value=Air-Conditioning>Air-Conditioning</option><option value=Water-Cooler>Water-Cooler</option></select></td>
+  <td><label>Sub Domain-1</label><select name="state" id="s2" onchange="ajaxFunction('s2');"><option value="">Select Sub Domain-1</option></select></td>
+  <td><label>Sub Domain-2</label><select name="city" id="s3" onchange="ajaxFunction('s3');"><option value="">Select Sub-Domain-2</option></select></td>
+</tr>
+<div id="txtHint2" style="display:none;"></div>
+<tr>
+  <td><label>Your Availability</label><input type="text" id="availability" name="availability" placeholder="available timing"></td>
+  <td><label>Maintenance Request Details (optional)</label> max 150 characters
+      <textarea rows="2" cols="15" name="maintenance" id="maintenance" onkeyup="limitText(this.form.maintenance,this.form.countdown,150);"></textarea></td>
+  <td><label>You have chars left</label><br><input readonly type="text" name="countdown" size="2" value="150" style="color:#FF0000;width:50px;">
+      <script>function limitText(f,c,n){ if(f.value.length>n){f.value=f.value.substring(0,n);} else {c.value=n-f.value.length;} }</script></td>
+</tr>
+<tr>
+  <td><label>Captcha</label><img src="demo_captcha.php" class="imgcaptcha" alt="captcha"><img src="images/refresh.png" alt="reload" class="refresh"></td>
+  <td colspan="2"><input type="text" placeholder="Enter Captcha Code" id="captcha" name="captcha" class="inputcaptcha"></td>
+</tr>
+<tr><td><input type="submit" id="submit" value="Submit" name="submit"></td></tr>
+</table></form>
+<footer align="center">Copyright &copy;2018 IIT Gandhinagar, All Rights Reserved</footer>
+</body></html>

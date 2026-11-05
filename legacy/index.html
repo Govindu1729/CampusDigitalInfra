@@ -1,0 +1,48 @@
+<!-- LEGACY SNAPSHOT (reference only, do not edit or ship).
+Reconstructed from page source of maintenance.iitgn.ac.in: markup, field names,
+validation and AJAX flow kept; commented-out dead code removed. -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>IITGN - Maintenance Request System</title>
+<script src="js/jquery-1.11.3-jquery.min.js"></script>
+<link rel="stylesheet" href="css/bootstrap.min.css"><link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/responsiveform.css">
+<style>
+.fancy-table{font-family:Arial,Helvetica,sans-serif;border-collapse:collapse;width:100%}
+.fancy-table td,.fancy-table th{border:1px solid #ddd;padding:8px}
+#openModal{padding:10px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);justify-content:center;align-items:center}
+.modal-content{background:#fff;border-radius:10px;padding:20px;width:100%;max-width:800px}
+</style></head>
+<body>
+<header>
+  <h3 style="margin-top:50px;color:#99FF33;font-size:50px;">Maintenance Request System</h3>
+  <p style="font-size:30px;color:#FFFFFF;">IIT Gandhinagar</p>
+  <!-- Admin Login link (admin/index.php) is commented out in production -->
+</header><hr>
+<table style="width:50%;margin-top:-30px;" align="center">
+<tr><td colspan="2"><hr><h3 align="center">For User</h3><hr></td></tr>
+<tr align="center"><td><a href="housing.php" class="myButton">Housing</a></td><td><a href="academic.php" class="myButton">Academic</a></td></tr>
+<tr align="center"><td><a href="hostel.php" class="myButton">Hostel</a></td><td><a href="jeet_hostel.php" class="myButton">JEET Hostel</a></td></tr>
+<tr align="center"><td><a href="infrastructure.php" class="myButton">Infrastructure</a></td><td><a href="guesthouse.php" class="myButton">Guest House</a></td></tr>
+<tr align="center"><td><a href="centralarcade.php" class="myButton">Central Arcade</a></td><td><a href="sportscomplex.php" class="myButton">Sports Complex</a></td></tr>
+<tr align="center"><td><a href="researchpark.php" class="myButton">Research Park</a></td><td><button id="openModal" class="myButton">Complaint Redressal</button></td></tr>
+</table>
+<div id="myModal" class="modal"><div class="modal-content" align="center">
+  <h3>Institute Works Department, IITGN</h3><hr>
+  <p><strong>For Complaints and Feedback</strong></p>
+  <p>In case of delayed/unsatisfactory response, please raise the level in the following order:</p>
+  <table class="fancy-table">
+    <tr><td>Level 1</td><td>Email AEE Civil (aee1.civil@iitgn.ac.in) or Electrical (aee1.electrical@iitgn.ac.in)</td></tr>
+    <tr><td>Level 2</td><td>Email EE (ee.civil@iitgn.ac.in)</td></tr>
+    <tr><td>Level 3</td><td>Email SE (se1@iitgn.ac.in)</td></tr>
+  </table>
+  <button id="closeModal">Close</button>
+</div></div>
+<script>
+const modal=document.getElementById("myModal");
+document.getElementById("openModal").onclick=()=>modal.style.display="flex";
+document.getElementById("closeModal").onclick=()=>modal.style.display="none";
+window.onclick=(e)=>{if(e.target===modal)modal.style.display="none";};
+</script>
+<footer align="center" style="margin-top:40px;">Copyright &copy;2026 IIT Gandhinagar, All Rights Reserved</footer>
+</body></html>
