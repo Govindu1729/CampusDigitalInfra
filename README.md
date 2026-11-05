@@ -1,4 +1,4 @@
-# IITGN Maintenance Request System (MRS) — Modern Operations Portal
+CampusDigitalInfra
 
 > **Institute Works Department (IWD)**  
 > **Indian Institute of Technology Gandhinagar (IITGN)**  
