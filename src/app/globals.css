@@ -32,6 +32,9 @@ html {
   max-width: 100vw;
   overflow-x: clip;
   background-color: var(--bg);
+  /* Permanently reserve scrollbar space so page width never twitches or shifts when content height changes */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 html.dark {
@@ -80,6 +83,12 @@ select {
   background-color: #1e293b;
   border-color: #334155;
   color: #f8fafc;
+}
+
+/* Ensure transparent inputs (like search bars) are never forced to have a background */
+.dark input.bg-transparent,
+.dark input[class*="bg-transparent"] {
+  background-color: transparent !important;
 }
 
 .dark input::placeholder,

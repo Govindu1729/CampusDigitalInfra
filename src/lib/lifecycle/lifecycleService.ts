@@ -36,47 +36,52 @@ export async function archiveSingleRequest(requestId: string) {
   const closedAt = req.closedAt || now;
   const purgeDueAt = calculatePurgeDate(now);
 
-  const archived = await prisma.archivedRequest.create({
-    data: {
-      ticketNumber: req.ticketNumber,
-      trackingToken: req.trackingToken,
-      category: req.category,
-      departmentId: req.departmentId,
-      departmentName: req.department?.name,
-      domain: req.domain,
-      subDomain1: req.subDomain1,
-      subDomain2: req.subDomain2,
-      requesterName: req.requesterName,
-      requesterEmail: req.requesterEmail,
-      requesterPhone: req.requesterPhone,
-      locationCategory: req.locationCategory,
-      locationDetail: req.locationDetail,
-      corridor: req.corridor,
-      availability: req.availability,
-      subject: req.subject,
-      description: req.description,
-      priority: req.priority,
-      status: "CLOSED",
-      closedByRole: req.closedByRole || "admin",
-      closedAt,
-      archivedAt: now,
-      purgeDueAt,
-      statusEventsJson: JSON.stringify(req.statusEvents),
-      followUpsJson: JSON.stringify(req.followUps),
-      attachmentsJson: JSON.stringify(req.attachments),
-      assignedStaffName: req.assignedStaff?.name || null,
-      assignedStaffEmail: req.assignedStaff?.email || null,
-      reopenCount: req.reopenCount,
-      satisfactionRating: req.satisfactionRating,
-      feedbackComments: req.feedbackComments,
-      originalCreatedAt: req.createdAt,
-    },
-  });
+  const archiveData = {
+    ticketNumber: req.ticketNumber,
+    trackingToken: req.trackingToken,
+    category: req.category,
+    departmentId: req.departmentId,
+    departmentName: req.department?.name || req.domain,
+    domain: req.domain,
+    subDomain1: req.subDomain1,
+    subDomain2: req.subDomain2,
+    requesterName: req.requesterName,
+    requesterEmail: req.requesterEmail,
+    requesterPhone: req.requesterPhone,
+    sharePhoneWithStaff: req.sharePhoneWithStaff ?? true,
+    locationCategory: req.locationCategory,
+    locationDetail: req.locationDetail,
+    corridor: req.corridor,
+    availability: req.availability,
+    subject: req.subject,
+    description: req.description,
+    priority: req.priority,
+    status: "CLOSED",
+    closedByRole: req.closedByRole || "admin",
+    closedAt,
+    archivedAt: now,
+    purgeDueAt,
+    statusEventsJson: JSON.stringify(req.statusEvents),
+    followUpsJson: JSON.stringify(req.followUps),
+    attachmentsJson: JSON.stringify(req.attachments),
+    assignedStaffName: req.assignedStaff?.name || null,
+    assignedStaffEmail: req.assignedStaff?.email || null,
+    reopenCount: req.reopenCount,
+    satisfactionRating: req.satisfactionRating,
+    feedbackComments: req.feedbackComments,
+    originalCreatedAt: req.createdAt,
+  };
 
-  // Remove from active operational database
-  await prisma.maintenanceRequest.delete({
-    where: { id: req.id },
-  });
+  const [archived] = await prisma.$transaction([
+    prisma.archivedRequest.upsert({
+      where: { ticketNumber: req.ticketNumber },
+      create: archiveData,
+      update: archiveData,
+    }),
+    prisma.maintenanceRequest.delete({
+      where: { id: req.id },
+    }),
+  ]);
 
   return archived;
 }
@@ -97,7 +102,10 @@ export async function checkAndRunArchivalSweep(): Promise<ArchivalSweepResult> {
   const closedDueCandidates = await prisma.maintenanceRequest.findMany({
     where: {
       status: "CLOSED",
-      closedAt: { lte: threeDaysCooldownThreshold },
+      OR: [
+        { closedAt: { lte: threeDaysCooldownThreshold } },
+        { closedAt: null, updatedAt: { lte: threeDaysCooldownThreshold } },
+      ],
     },
     select: { id: true, closedByRole: true },
   });
@@ -155,6 +163,18 @@ export async function getArchivedRequestByTicket(ticketNumber: string) {
 
   return {
     ...archived,
+    createdAt: archived.originalCreatedAt,
+    department: {
+      id: archived.departmentId,
+      name: archived.departmentName || archived.domain,
+    },
+    assignedStaff: archived.assignedStaffName
+      ? {
+          name: archived.assignedStaffName,
+          email: archived.assignedStaffEmail,
+          phone: null,
+        }
+      : null,
     statusEvents: JSON.parse(archived.statusEventsJson || "[]"),
     followUps: JSON.parse(archived.followUpsJson || "[]"),
     attachments: JSON.parse(archived.attachmentsJson || "[]"),

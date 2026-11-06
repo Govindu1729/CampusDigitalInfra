@@ -62,6 +62,7 @@ import {
 import ImageLightboxModal from "@/components/ImageLightboxModal";
 import EvidencePhotosGallery from "@/components/EvidencePhotosGallery";
 import { clearStoredTickets } from "@/lib/storage/ticketStorage";
+import { sortComplaintsByOperationalPriority } from "@/lib/queue/sorting";
 
 const CATEGORY_ICON_OPTIONS = [
   { id: "Home", label: "Residential Housing", icon: Home },
@@ -1211,13 +1212,30 @@ export default function AdminPortalPage() {
     const inProgress = requests.filter((r) => r.status === "IN_PROGRESS" || r.status === "ASSIGNED").length;
     const resolved = requests.filter((r) => r.status === "RESOLVED" || r.status === "CLOSED").length;
     const urgent = requests.filter((r) => r.isUrgent || r.priority === "EMERGENCY" || r.escalationLevel > 0).length;
-    return { total, pending, inProgress, resolved, urgent };
-  }, [requests]);
+    const unassigned = requests.filter(
+      (r) => !r.assignedStaffId && !r.assignedStaff && r.status !== "CLOSED" && r.status !== "RESOLVED"
+    ).length;
+    const myAssigned = requests.filter(
+      (r) =>
+        currentUser &&
+        ((currentUser.id && r.assignedStaffId === currentUser.id) ||
+          (currentUser.email && r.assignedStaff?.email?.toLowerCase() === currentUser.email?.toLowerCase())) &&
+        r.status !== "CLOSED" &&
+        r.status !== "RESOLVED"
+    ).length;
+    return { total, pending, inProgress, resolved, urgent, unassigned, myAssigned };
+  }, [requests, currentUser]);
 
   const isLevel1Admin =
     currentUser?.roleLevel === 1 || currentUser?.roleCode === "OVERALL_ADMIN";
-  const isDeptAdmin = currentUser?.roleLevel === 2;
+  const isDeptAdmin = currentUser?.roleLevel === 2 || currentUser?.roleCode === "DEPT_ADMIN";
+  const isDeptStaff = currentUser?.roleLevel === 3 || currentUser?.roleCode === "DEPT_STAFF";
   const canManageDeptOrUniversal = isLevel1Admin || isDeptAdmin;
+
+  // Multi-tier operational queue sorting
+  const sortedRequests = useMemo(() => {
+    return sortComplaintsByOperationalPriority(requests, currentUser);
+  }, [requests, currentUser]);
 
   if (isSessionLoading) {
     return (
@@ -1434,15 +1452,27 @@ export default function AdminPortalPage() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-amber-200 dark:border-amber-900/50 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs">
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Action Needed</p>
-          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{kpis.pending}</p>
-          <span className="text-[10px] text-amber-600 dark:text-amber-400">Submitted & Reopened</span>
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+            {isDeptAdmin ? "Needs Assignment" : "Action Needed"}
+          </p>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+            {isDeptAdmin ? kpis.unassigned : kpis.pending}
+          </p>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">
+            {isDeptAdmin ? `${kpis.unassigned} unassigned tasks` : "Submitted & Reopened"}
+          </span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-blue-200 dark:border-blue-900/50 bg-blue-50/20 dark:bg-blue-950/20 shadow-xs">
-          <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">In Progress</p>
-          <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{kpis.inProgress}</p>
-          <span className="text-[10px] text-blue-600 dark:text-blue-400">Assigned / In field</span>
+          <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+            {isDeptStaff ? "Assigned To You" : "In Progress"}
+          </p>
+          <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+            {isDeptStaff ? kpis.myAssigned : kpis.inProgress}
+          </p>
+          <span className="text-[10px] text-blue-600 dark:text-blue-400">
+            {isDeptStaff ? `${kpis.myAssigned} work orders on your plate` : "Assigned / In field"}
+          </span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 dark:bg-emerald-950/20 shadow-xs">
@@ -1634,7 +1664,7 @@ export default function AdminPortalPage() {
                 <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-2" />
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Loading requests...</p>
               </div>
-            ) : requests.length === 0 ? (
+            ) : sortedRequests.length === 0 ? (
               <div className="py-20 text-center">
                 <Wrench className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">No maintenance requests found</h3>
@@ -1644,181 +1674,39 @@ export default function AdminPortalPage() {
               <div>
                 {/* Mobile Complaints Cards (<md screens: plumbers & field staff on small phones) */}
                 <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-                  {requests.map((r) => (
-                    <div
-                      key={r.id}
-                      onClick={() => router.push(`/track/${r.ticketNumber}`)}
-                      className="p-4 space-y-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors active:bg-slate-100 dark:active:bg-slate-800 cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">
-                              {r.ticketNumber}
-                            </span>
-                            {r.reopenCount > 0 && (
-                              <span className="inline-flex items-center text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/60">
-                                <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
-                                {r.reopenCount}
+                  {sortedRequests.map((r) => {
+                    const isAssignedToMe = Boolean(
+                      currentUser &&
+                      ((currentUser.id && r.assignedStaffId === currentUser.id) ||
+                        (currentUser.email && r.assignedStaff?.email?.toLowerCase() === currentUser.email?.toLowerCase()))
+                    );
+
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => router.push(`/track/${r.ticketNumber}`)}
+                        className="p-4 space-y-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors active:bg-slate-100 dark:active:bg-slate-800 cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">
+                                {r.ticketNumber}
+                              </span>
+                              {r.reopenCount > 0 && (
+                                <span className="inline-flex items-center text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/60">
+                                  <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
+                                  {r.reopenCount}
+                                </span>
+                              )}
+                            </div>
+                            {isLevel1Admin && (
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                {r.department?.name}
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                            {r.department?.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.priority === "EMERGENCY"
-                                ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
-                                : r.priority === "HIGH"
-                                  ? "bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                              }`}
-                          >
-                            {r.priority}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.status === "RESOLVED" || r.status === "CLOSED"
-                                ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50"
-                                : r.status === "IN_PROGRESS"
-                                  ? "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
-                                  : r.status === "REOPENED"
-                                    ? "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
-                                    : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
-                              }`}
-                          >
-                            {r.status}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                          {r.subject}
-                        </h4>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                          <span>📍 {r.locationDetail}</span>
-                          <span>•</span>
-                          <span>👤 {r.requesterName}</span>
-                          {r.requesterPhone && (
-                            <a
-                              href={`tel:${r.requesterPhone}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
-                            >
-                              ({r.requesterPhone})
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Badges row & Touch Action Buttons */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2 text-[11px]">
-                          {r.followUps && r.followUps.length > 0 && (
-                            <span className="inline-flex items-center text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/60 text-[10px]">
-                              <MessageSquare className="w-3 h-3 mr-1" />
-                              {r.followUps.length}
-                            </span>
-                          )}
-                          {((r.attachments && r.attachments.length > 0) || (r._count && r._count.attachments > 0)) && (
-                            <span className="inline-flex items-center text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/60 text-[10px]">
-                              <Camera className="w-3 h-3 mr-1" />
-                              {r.attachments?.length || r._count?.attachments}
-                            </span>
-                          )}
-                          {r.assignedStaff && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                              Tech: <strong className="text-slate-700 dark:text-slate-300">{r.assignedStaff.name}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/chat/${r.ticketNumber}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center gap-1 shadow-2xs active:scale-95 transition-all"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>Chat</span>
-                          </Link>
-                          <Link
-                            href={`/track/${r.ticketNumber}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-bold text-xs transition-colors shadow-2xs inline-flex items-center gap-1"
-                          >
-                            <Wrench className="w-3.5 h-3.5" />
-                            <span>Manage</span>
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Desktop Complaints Table (>=md screens) */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-slate-800">
-                      <tr>
-                        <th className="px-5 py-3.5">Ticket ID</th>
-                        <th className="px-4 py-3.5">Department</th>
-                        <th className="px-4 py-3.5">Fault Details</th>
-                        <th className="px-4 py-3.5">Location</th>
-                        <th className="px-4 py-3.5">Requester</th>
-                        <th className="px-4 py-3.5">Priority</th>
-                        <th className="px-4 py-3.5">Status</th>
-                        <th className="px-4 py-3.5">Assigned To</th>
-                        <th className="px-5 py-3.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                      {requests.map((r) => (
-                        <tr
-                          key={r.id}
-                          className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
-                          onClick={() => currentUser?.roleCode === "DEPT_STAFF" ? router.push(`/track/${r.ticketNumber}`) : openRequestDrawer(r)}
-                        >
-                          <td className="px-5 py-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                            <div className="flex flex-col">
-                              <span>{r.ticketNumber}</span>
-                              {r.reopenCount > 0 && (
-                                <span className="inline-flex items-center text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/60 w-fit mt-0.5">
-                                  <RotateCcw className="w-2.5 h-2.5 mr-1" />
-                                  Reopened ({r.reopenCount})
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">
-                            {r.department?.name}
-                          </td>
-                          <td className="px-4 py-3.5 max-w-xs">
-                            <p className="font-bold text-slate-900 dark:text-white truncate">{r.subject}</p>
-                            <div className="flex items-center space-x-2 text-[11px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
-                              <span>{r.domain} → {r.subDomain1}</span>
-                              {((r.attachments && r.attachments.length > 0) || (r._count && r._count.attachments > 0)) && (
-                                <span className="inline-flex items-center text-blue-700 dark:text-blue-300 font-bold text-[10px] bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-900/60">
-                                  <Camera className="w-3 h-3 mr-1" />
-                                  {r.attachments?.length || r._count?.attachments} photo{(r.attachments?.length || r._count?.attachments) > 1 ? "s" : ""}
-                                </span>
-                              )}
-                              {r.followUps && r.followUps.length > 0 && (
-                                <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/60">
-                                  <MessageSquare className="w-3 h-3 mr-1" />
-                                  {r.followUps.length} note{r.followUps.length > 1 ? "s" : ""}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 text-slate-700 dark:text-slate-300">{r.locationDetail}</td>
-                          <td className="px-4 py-3.5">
-                            <p className="text-slate-800 dark:text-slate-200 font-semibold">{r.requesterName}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500">{r.requesterPhone}</p>
-                          </td>
-                          <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.priority === "EMERGENCY"
                                 ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
@@ -1829,60 +1717,256 @@ export default function AdminPortalPage() {
                             >
                               {r.priority}
                             </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex flex-col">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold w-fit ${r.status === "RESOLVED" || r.status === "CLOSED"
-                                  ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50"
-                                  : r.status === "IN_PROGRESS"
-                                    ? "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
-                                    : r.status === "REOPENED"
-                                      ? "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
-                                      : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
-                                  }`}
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${r.status === "RESOLVED" || r.status === "CLOSED"
+                                ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50"
+                                : r.status === "IN_PROGRESS"
+                                  ? "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
+                                  : r.status === "REOPENED"
+                                    ? "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
+                                    : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
+                                }`}
+                            >
+                              {r.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                            {r.subject}
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                            <span>📍 {r.locationDetail}</span>
+                            <span>•</span>
+                            <span>👤 {r.requesterName}</span>
+                            {r.requesterPhone && (
+                              <a
+                                href={`tel:${r.requesterPhone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
                               >
-                                {r.status}
+                                ({r.requesterPhone})
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Badges row & Touch Action Buttons */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2 text-[11px]">
+                            {r.followUps && r.followUps.length > 0 && (
+                              <span className="inline-flex items-center text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/60 text-[10px]">
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                {r.followUps.length}
                               </span>
-                              {r.status === "CLOSED" && r.closedAt && (
-                                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                  By {r.closedByRole === "requester" ? "Resident" : "Admin"}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5">
+                            )}
+                            {((r.attachments && r.attachments.length > 0) || (r._count && r._count.attachments > 0)) && (
+                              <span className="inline-flex items-center text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/60 text-[10px]">
+                                <Camera className="w-3 h-3 mr-1" />
+                                {r.attachments?.length || r._count?.attachments}
+                              </span>
+                            )}
                             {r.assignedStaff ? (
-                              <span className="text-slate-800 dark:text-slate-200 font-semibold">
-                                {r.assignedStaff.name}
+                              <span
+                                className={`text-[10px] font-medium ${
+                                  isAssignedToMe
+                                    ? "text-indigo-700 dark:text-indigo-300 font-bold bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-900/60"
+                                    : "text-slate-500 dark:text-slate-400"
+                                }`}
+                              >
+                                Tech:{" "}
+                                <strong
+                                  className={
+                                    isAssignedToMe
+                                      ? "text-indigo-700 dark:text-indigo-300 font-bold"
+                                      : "text-slate-700 dark:text-slate-300"
+                                  }
+                                >
+                                  {isAssignedToMe ? "You" : r.assignedStaff.name}
+                                </strong>
                               </span>
                             ) : (
-                              <span className="text-slate-400 dark:text-slate-500 italic">Unassigned</span>
+                              <span className="inline-flex items-center text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-900/60">
+                                Needs Assignment
+                              </span>
                             )}
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Link
-                                href={`/chat/${r.ticketNumber}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                                title="Open Chat Screen"
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/chat/${r.ticketNumber}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center gap-1 shadow-2xs active:scale-95 transition-all"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>Chat</span>
+                            </Link>
+                            <Link
+                              href={`/track/${r.ticketNumber}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-bold text-xs transition-colors shadow-2xs inline-flex items-center gap-1"
+                            >
+                              <Wrench className="w-3.5 h-3.5" />
+                              <span>Manage</span>
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Complaints Table (>=md screens) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="px-5 py-3.5">Ticket ID</th>
+                        {isLevel1Admin && <th className="px-4 py-3.5">Department</th>}
+                        <th className="px-4 py-3.5">Fault Details</th>
+                        <th className="px-4 py-3.5">Location</th>
+                        <th className="px-4 py-3.5">Requester</th>
+                        <th className="px-4 py-3.5">Priority</th>
+                        <th className="px-4 py-3.5">Status</th>
+                        <th className="px-4 py-3.5">Assigned To</th>
+                        <th className="px-5 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                      {sortedRequests.map((r) => {
+                        const isAssignedToMe = Boolean(
+                          currentUser &&
+                          ((currentUser.id && r.assignedStaffId === currentUser.id) ||
+                            (currentUser.email && r.assignedStaff?.email?.toLowerCase() === currentUser.email?.toLowerCase()))
+                        );
+
+                        return (
+                          <tr
+                            key={r.id}
+                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
+                            onClick={() => openRequestDrawer(r)}
+                          >
+                            <td className="px-5 py-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                              <div className="flex flex-col">
+                                <span>{r.ticketNumber}</span>
+                                {r.reopenCount > 0 && (
+                                  <span className="inline-flex items-center text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/60 w-fit mt-0.5">
+                                    <RotateCcw className="w-2.5 h-2.5 mr-1" />
+                                    Reopened ({r.reopenCount})
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            {isLevel1Admin && (
+                              <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200">
+                                {r.department?.name}
+                              </td>
+                            )}
+                            <td className="px-4 py-3.5 max-w-xs">
+                              <p className="font-bold text-slate-900 dark:text-white truncate">{r.subject}</p>
+                              <div className="flex items-center space-x-2 text-[11px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
+                                <span>{r.domain} → {r.subDomain1}</span>
+                                {((r.attachments && r.attachments.length > 0) || (r._count && r._count.attachments > 0)) && (
+                                  <span className="inline-flex items-center text-blue-700 dark:text-blue-300 font-bold text-[10px] bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-900/60">
+                                    <Camera className="w-3 h-3 mr-1" />
+                                    {r.attachments?.length || r._count?.attachments} photo{(r.attachments?.length || r._count?.attachments) > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                                {r.followUps && r.followUps.length > 0 && (
+                                  <span className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/60">
+                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                    {r.followUps.length} note{r.followUps.length > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-700 dark:text-slate-300">{r.locationDetail}</td>
+                            <td className="px-4 py-3.5">
+                              <p className="text-slate-800 dark:text-slate-200 font-semibold">{r.requesterName}</p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500">{r.requesterPhone}</p>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.priority === "EMERGENCY"
+                                  ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
+                                  : r.priority === "HIGH"
+                                    ? "bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                  }`}
                               >
-                                <MessageCircle className="w-3.5 h-3.5" />
-                                <span>Chat</span>
-                              </Link>
-                              <Link
-                                href={`/track/${r.ticketNumber}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors shadow-2xs inline-flex items-center gap-1"
-                              >
-                                <Wrench className="w-3.5 h-3.5" />
-                                <span>Manage</span>
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                {r.priority}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex flex-col">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold w-fit ${r.status === "RESOLVED" || r.status === "CLOSED"
+                                    ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50"
+                                    : r.status === "IN_PROGRESS"
+                                      ? "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
+                                      : r.status === "REOPENED"
+                                        ? "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50"
+                                        : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50"
+                                    }`}
+                                >
+                                  {r.status}
+                                </span>
+                                {r.status === "CLOSED" && r.closedAt && (
+                                  <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                    By {r.closedByRole === "requester" ? "Resident" : "Admin"}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {r.assignedStaff ? (
+                                <div className="flex flex-col">
+                                  <span
+                                    className={`font-semibold ${
+                                      isAssignedToMe
+                                        ? "text-indigo-700 dark:text-indigo-300 font-bold"
+                                        : "text-slate-800 dark:text-slate-200"
+                                    }`}
+                                  >
+                                    {r.assignedStaff.name}
+                                  </span>
+                                  {isAssignedToMe && (
+                                    <span className="inline-flex items-center text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-900/60 w-fit mt-0.5">
+                                      ★ Assigned to You
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/60">
+                                  Needs Assignment
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Link
+                                  href={`/chat/${r.ticketNumber}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                  title="Open Chat Screen"
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5" />
+                                  <span>Chat</span>
+                                </Link>
+                                <Link
+                                  href={`/track/${r.ticketNumber}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors shadow-2xs inline-flex items-center gap-1"
+                                >
+                                  <Wrench className="w-3.5 h-3.5" />
+                                  <span>Manage</span>
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

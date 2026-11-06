@@ -48,6 +48,29 @@ function getStatusBadge(status: string) {
   }
 }
 
+function RequestCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="space-y-2.5 min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded-md animate-pulse" />
+          <div className="h-4 w-20 bg-slate-100 dark:bg-slate-800/80 rounded-full animate-pulse" />
+        </div>
+        <div className="h-5 w-3/4 sm:w-1/2 bg-slate-200 dark:bg-slate-800 rounded-md animate-pulse" />
+        <div className="flex items-center gap-2">
+          <div className="h-3.5 w-24 bg-slate-100 dark:bg-slate-800/60 rounded-md animate-pulse" />
+          <div className="h-3.5 w-36 bg-slate-100 dark:bg-slate-800/60 rounded-md animate-pulse" />
+          <div className="h-3.5 w-28 bg-slate-100 dark:bg-slate-800/60 rounded-md animate-pulse" />
+        </div>
+      </div>
+      <div className="shrink-0 flex items-center justify-end gap-2">
+        <div className="h-8 w-16 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+        <div className="h-8 w-28 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
 function TrackLookupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,13 +87,14 @@ function TrackLookupContent() {
 
   // Authenticated User State
   const [currentUser, setCurrentUser] = useState<any | null>(null);
-  const [loadingSession, setLoadingSession] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Logged-in Requests
+  // Logged-in Requests & Instant Counts
   const [myActiveRequests, setMyActiveRequests] = useState<any[]>([]);
-  const [loadingActive, setLoadingActive] = useState(false);
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [historyCount, setHistoryCount] = useState<number | null>(null);
 
-  // On-demand Previous / History state (NOT pre-fetched on initial load to protect secondary DB)
+  // On-demand Previous / History state (cached after first click)
   const [myHistoryRequests, setMyHistoryRequests] = useState<any[]>([]);
   const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -78,36 +102,43 @@ function TrackLookupContent() {
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "HISTORY">("ACTIVE");
   const [searchFilter, setSearchFilter] = useState("");
 
-  // Check session and load active complaints on mount
+  // Single unified fetch on mount: loads session, active complaints & history count in ONE call
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    let isMounted = true;
+
+    fetch("/api/requests/my?type=active")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Unauthenticated or fetch failed");
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (!isMounted) return;
         if (data.success && data.user) {
           setCurrentUser(data.user);
-          // Fetch ONLY active complaints on initial load (does NOT touch secondary DB)
-          setLoadingActive(true);
-          fetch("/api/requests/my?type=active")
-            .then((res) => res.json())
-            .then((reqData) => {
-              if (reqData.success) {
-                setMyActiveRequests(reqData.activeRequests || []);
-              }
-            })
-            .catch(() => { })
-            .finally(() => setLoadingActive(false));
+          setMyActiveRequests(data.activeRequests || []);
+          setActiveCount(typeof data.activeCount === "number" ? data.activeCount : (data.activeRequests?.length || 0));
+          setHistoryCount(typeof data.historyCount === "number" ? data.historyCount : 0);
         } else {
           setCurrentUser(null);
           setSavedTickets(getStoredTickets());
         }
       })
       .catch(() => {
+        if (!isMounted) return;
         setCurrentUser(null);
         setSavedTickets(getStoredTickets());
       })
       .finally(() => {
-        setLoadingSession(false);
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
       });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // On-demand fetch for Previous / History when user clicks the button
@@ -121,6 +152,9 @@ function TrackLookupContent() {
           if (data.success) {
             setMyHistoryRequests(data.historyRequests || []);
             setHasFetchedHistory(true);
+            if (typeof data.historyCount === "number") {
+              setHistoryCount(data.historyCount);
+            }
           }
         })
         .catch(() => { })
@@ -225,13 +259,48 @@ function TrackLookupContent() {
   });
 
   const isCurrentTabLoading =
-    activeTab === "ACTIVE" ? loadingActive : loadingHistory;
+    activeTab === "ACTIVE" ? false : loadingHistory;
 
-  if (loadingSession) {
+  if (isInitialLoading) {
     return (
-      <div className="py-24 text-center space-y-3">
-        <Loader2 className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-spin mx-auto" />
-        <p className="text-xs text-slate-500 dark:text-slate-400">Loading tracking dashboard...</p>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fade-in">
+        {/* Top Header */}
+        <div className="text-center space-y-3">
+          <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+            My Maintenance Requests
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
+            View the progress of your ongoing complaints and on-demand records from the campus works department.
+          </p>
+        </div>
+
+        {/* Primary Controls Skeleton */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-xs">
+                <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400">Active Requests</span>
+                <span className="w-6 h-4 bg-blue-100 dark:bg-blue-900/60 rounded-full animate-pulse" />
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-slate-600 dark:text-slate-400">
+                <History className="w-4 h-4 text-slate-400" />
+                <span className="text-xs sm:text-sm font-bold">Previous / History</span>
+                <span className="w-6 h-4 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+              </div>
+            </div>
+
+            <div className="h-9 w-36 bg-blue-100/70 dark:bg-blue-950/60 rounded-xl animate-pulse" />
+          </div>
+
+          <div className="h-10 w-full bg-slate-100 dark:bg-slate-800/60 rounded-xl animate-pulse" />
+        </div>
+
+        {/* Request Cards Skeleton */}
+        <div className="space-y-3">
+          <RequestCardSkeleton />
+          <RequestCardSkeleton />
+        </div>
       </div>
     );
   }
@@ -244,16 +313,6 @@ function TrackLookupContent() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Top Header */}
         <div className="text-center space-y-3">
-          {/* <div className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400" />
-              <span>{currentUser.roleName || currentUser.roleCode}</span>
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-              {currentUser.email}
-            </span>
-          </div> */}
-
           <h1 className="text-xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
             My Maintenance Requests
           </h1>
@@ -270,46 +329,45 @@ function TrackLookupContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab("ACTIVE")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === "ACTIVE"
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === "ACTIVE"
                     ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
+                }`}
               >
                 <Clock className="w-4 h-4" />
                 <span>Active Requests</span>
                 <span
-                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeTab === "ACTIVE"
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    activeTab === "ACTIVE"
                       ? "bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300"
                       : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                    }`}
+                  }`}
                 >
-                  {myActiveRequests.length}
+                  {activeCount !== null ? activeCount : myActiveRequests.length}
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={handleSelectHistoryTab}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === "HISTORY"
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === "HISTORY"
                     ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
+                }`}
               >
                 <History className="w-4 h-4" />
                 <span>Previous / History</span>
-                {hasFetchedHistory && (
-                  <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeTab === "HISTORY"
-                        ? "bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                      }`}
-                  >
-                    {myHistoryRequests.length}
-                  </span>
-                )}
-                {loadingHistory && (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
-                )}
+                <span
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    activeTab === "HISTORY"
+                      ? "bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300"
+                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {historyCount !== null ? historyCount : myHistoryRequests.length}
+                </span>
               </button>
             </div>
 
@@ -338,13 +396,9 @@ function TrackLookupContent() {
 
         {/* Requests List - EXACT SAME LAYOUT FOR BOTH ACTIVE AND HISTORY */}
         {isCurrentTabLoading ? (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border border-slate-200 dark:border-slate-800 space-y-3">
-            <Loader2 className="w-7 h-7 text-blue-600 dark:text-blue-400 animate-spin mx-auto" />
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              {activeTab === "ACTIVE"
-                ? "Loading active complaints..."
-                : "Retrieving previous history from secondary archival database..."}
-            </p>
+          <div className="space-y-3">
+            <RequestCardSkeleton />
+            <RequestCardSkeleton />
           </div>
         ) : displayedRequests.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 sm:p-14 text-center border border-slate-200 dark:border-slate-800 space-y-4">

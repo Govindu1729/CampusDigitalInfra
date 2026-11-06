@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canAccessDepartment } from "@/lib/auth/rbac";
-import { getArchivedRequestByTicket } from "@/lib/lifecycle/lifecycleService";
+import { getArchivedRequestByTicket, archiveSingleRequest } from "@/lib/lifecycle/lifecycleService";
 import { LIFECYCLE_CONFIG } from "@/config/lifecycle";
 import { canStaffViewResidentPhone } from "@/config/privacy";
 
@@ -129,6 +129,36 @@ export async function GET(
       const deadline = new Date(new Date(request.closedAt).getTime() + graceMs);
       canReopen = Date.now() <= deadline.getTime();
       reopenDeadline = deadline.toISOString();
+    }
+
+    // If ticket grace period has concluded, immediately transfer to secondary archival storage
+    if (isClosed && !canReopen) {
+      try {
+        await archiveSingleRequest(request.id);
+        const archived = await getArchivedRequestByTicket(request.ticketNumber);
+        if (archived) {
+          const canStaffCall = canStaffViewResidentPhone(archived);
+          const effectivePhone = (isRequesterUser || isAuthorizedRequester || canStaffCall)
+            ? archived.requesterPhone
+            : null;
+
+          return NextResponse.json({
+            success: true,
+            request: {
+              ...archived,
+              requesterPhone: effectivePhone,
+              canStaffCall,
+              sharePhoneWithStaff: archived.sharePhoneWithStaff ?? true,
+              followUps: visibleFollowUps,
+              isArchived: true,
+              canReopen: false,
+              reopenReasonMessage: "This request has exceeded the grace period and is archived in secondary storage.",
+            },
+          });
+        }
+      } catch (archErr) {
+        console.error("Auto archival on single request fetch failed:", archErr);
+      }
     }
 
     // Resident Phone Privacy Policy: only disclose to staff if policy and resident permit it

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { buildDepartmentFilter } from "@/lib/auth/rbac";
+import { checkAndRunArchivalSweep } from "@/lib/lifecycle/lifecycleService";
+import { sortComplaintsByOperationalPriority } from "@/lib/queue/sorting";
 import crypto from "crypto";
 
 // Map domains to department codes
@@ -14,6 +16,8 @@ const DOMAIN_TO_DEPT_CODE: Record<string, string> = {
   "Carpentry": "CARP",
   "Network/IT": "IT",
 };
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,20 +98,25 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Run archival sweep in background to maintain secondary storage lifecycle
-    import("@/lib/lifecycle/lifecycleService").then(({ checkAndRunArchivalSweep }) => {
-      checkAndRunArchivalSweep().catch(() => {});
-    });
+    // Ensure archival sweep runs to keep primary database and secondary storage synchronized
+    try {
+      await checkAndRunArchivalSweep();
+    } catch (e) {
+      console.error("Archival sweep error:", e);
+    }
+
+    // Sort complaints by operational priority according to role context
+    const sortedRequests = sortComplaintsByOperationalPriority(requests, currentUser);
 
     return NextResponse.json({
       success: true,
-      count: requests.length,
+      count: sortedRequests.length,
       userRole: currentUser ? {
         level: currentUser.roleLevel,
         code: currentUser.roleCode,
         departmentName: currentUser.departmentName,
       } : null,
-      requests,
+      requests: sortedRequests,
     });
   } catch (error) {
     console.error("Error fetching requests:", error);

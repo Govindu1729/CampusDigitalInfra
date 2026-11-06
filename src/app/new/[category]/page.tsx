@@ -568,9 +568,8 @@ export default function NewComplaintPage() {
   };
 
   const trackingUrl = submissionResult
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${
-        submissionResult.ticketNumber
-      }?token=${submissionResult.trackingToken}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${submissionResult.ticketNumber
+    }?token=${submissionResult.trackingToken}`
     : "";
 
   const copyTrackingLink = () => {
@@ -788,8 +787,8 @@ export default function NewComplaintPage() {
 
         {/* Announcement / Emergency Notice Banner if configured */}
         {currentCategoryObj.bannerNotice && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start space-x-3 text-xs shadow-xs">
-            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 flex items-start space-x-3 text-xs shadow-xs">
+            <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1 font-medium">{currentCategoryObj.bannerNotice}</div>
           </div>
         )}
@@ -797,9 +796,8 @@ export default function NewComplaintPage() {
         {/* ------------------------------------------------------------- */}
         {/* HEADER BANNER (WITH IN-PLACE EDITOR CONTROLS)                 */}
         {/* ------------------------------------------------------------- */}
-        <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs mb-8 transition-all ${
-          isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
-        }`}>
+        <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs mb-8 transition-all ${isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
+          }`}>
           {isEditorActive ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -1026,9 +1024,8 @@ export default function NewComplaintPage() {
           {/* ------------------------------------------------------------- */}
           {/* SECTION 2: FAULT LOCATION DETAILS & BUILDINGS MANAGER         */}
           {/* ------------------------------------------------------------- */}
-          <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-all ${
-            isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
-          }`}>
+          <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-all ${isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
+            }`}>
             <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">2. Fault Location Details</h2>
@@ -1078,13 +1075,12 @@ export default function NewComplaintPage() {
                             handleAddLocationItem();
                           }
                         }}
-                        placeholder={`+ Add New ${
-                          editedCategory.locationType === "academic"
-                            ? "Complex / Building (e.g. Academic Complex 5 (AB 5), Design Studio)"
-                            : editedCategory.locationType === "hostel"
+                        placeholder={`+ Add New ${editedCategory.locationType === "academic"
+                          ? "Complex / Building (e.g. Academic Complex 5 (AB 5), Design Studio)"
+                          : editedCategory.locationType === "hostel"
                             ? "Hostel Block (e.g. Hostel 13, Block E)"
                             : "Building, Flat, or Location..."
-                        }`}
+                          }`}
                         className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                       />
                       <button
@@ -1364,9 +1360,8 @@ export default function NewComplaintPage() {
           {/* ------------------------------------------------------------- */}
           {/* SECTION 3: NATURE OF MAINTENANCE FAULT & DOMAINS             */}
           {/* ------------------------------------------------------------- */}
-          <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-all ${
-            isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
-          }`}>
+          <div className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6 transition-all ${isEditorActive ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200 dark:border-slate-800"
+            }`}>
             <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">3. Nature of Maintenance Fault</h2>
@@ -1401,11 +1396,10 @@ export default function NewComplaintPage() {
                     <button
                       type="button"
                       onClick={() => handleDomainChange(dom)}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center space-x-1.5 ${
-                        formData.domain === dom
-                          ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-500/30"
-                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                      }`}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center space-x-1.5 ${formData.domain === dom
+                        ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-500/30"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
                     >
                       <span>{dom}</span>
                     </button>
@@ -1618,16 +1612,18 @@ export default function NewComplaintPage() {
 
             {/* Photo Attachments - Guest users are NOT allowed to add images */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Attach Photos of Fault (Max 3 images, 8MB each)
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Attach Photos of Fault <span className="font-normal text-slate-500 dark:text-slate-400 text-[11px]">(Max 3 images, 8MB each)</span>
                 </label>
                 {currentUser ? (
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    ✓ Verified Resident: {currentUser.name}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Verified Resident: {currentUser.name}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                     Guest Mode (No Photos)
                   </span>
                 )}
@@ -1636,12 +1632,12 @@ export default function NewComplaintPage() {
               {currentUser ? (
                 <div className="space-y-3">
                   {attachments.length < 3 && (
-                    <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl cursor-pointer bg-slate-50/60 hover:bg-indigo-50/20 transition-all group">
-                      <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 mb-1 transition-colors" />
-                      <span className="text-xs font-semibold text-indigo-600 group-hover:text-indigo-700">
+                    <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl cursor-pointer bg-slate-50/60 dark:bg-slate-800/40 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-all group">
+                      <Upload className="w-6 h-6 text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 mb-1 transition-colors" />
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
                         {attachments.length === 0 ? "Click to upload fault photos" : "Add another photo"}
                       </span>
-                      <span className="text-[11px] text-slate-400 mt-0.5">
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                         JPEG, PNG, or WebP ({3 - attachments.length} slot{3 - attachments.length === 1 ? "" : "s"} remaining)
                       </span>
                       <input
@@ -1691,7 +1687,7 @@ export default function NewComplaintPage() {
                               </p>
                             </div>
 
-                            {/* Edit / Annotate Button - Cleanly positioned action */}
+                            {/* Edit / Annotate Button */}
                             <button
                               type="button"
                               onClick={() => setAnnotatingUploadIdx(idx)}
@@ -1708,19 +1704,23 @@ export default function NewComplaintPage() {
                   )}
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-amber-900 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Guest User is not allowed to add images</span>
-                    </p>
-                    <p className="text-slate-600 text-[11px] leading-relaxed">
-                      Photo uploads are reserved for verified IITGN residents. You can still submit this single complaint directly without photos, or sign in to attach images.
-                    </p>
+                <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 text-xs shadow-2xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100/80 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200/60 dark:border-amber-900/50 mt-0.5">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-900 dark:text-slate-100">
+                        Photo Uploads Reserved for Verified Residents
+                      </p>
+                      <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                        To maintain institutional infrastructure security, attaching photos requires a resident login. You can submit this complaint directly without images, or sign in now.
+                      </p>
+                    </div>
                   </div>
                   <Link
                     href={`/login?redirect=/new/${categorySlug}`}
-                    className="shrink-0 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs text-center transition-colors shadow-xs"
+                    className="shrink-0 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs text-center transition-all shadow-xs"
                   >
                     Sign In to Add Photos
                   </Link>
@@ -1729,20 +1729,41 @@ export default function NewComplaintPage() {
             </div>
 
             {/* Urgent / Safety Hazard Toggle */}
-            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-start space-x-3">
-              <input
-                type="checkbox"
-                id="isUrgent"
-                checked={formData.isUrgent}
-                onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
-                className="mt-1 w-4 h-4 rounded text-amber-600 border-amber-300 focus:ring-amber-500"
-              />
-              <label htmlFor="isUrgent" className="text-xs text-amber-900 cursor-pointer">
-                <span className="font-bold text-amber-950 block">
-                  Flag as Urgent / Safety Hazard (Emergency)
-                </span>
-                Check only for active hazards (e.g. sparking switchboard, active flooding, gas leak). Urgent requests alert the 24x7 control room immediately.
-              </label>
+            <div
+              className={`p-4 rounded-2xl border transition-all flex items-start space-x-3.5 cursor-pointer ${
+                formData.isUrgent
+                  ? "bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 ring-2 ring-rose-500/20 text-rose-950 dark:text-rose-100 shadow-xs"
+                  : "bg-slate-50/80 dark:bg-slate-800/40 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 border-slate-200 dark:border-slate-800 hover:border-rose-200 dark:hover:border-rose-900/40 text-slate-700 dark:text-slate-300"
+              }`}
+              onClick={() => setFormData({ ...formData, isUrgent: !formData.isUrgent })}
+            >
+              <div className="mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  id="isUrgent"
+                  checked={formData.isUrgent}
+                  onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded text-rose-600 border-slate-300 dark:border-slate-600 focus:ring-rose-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1 text-xs select-none">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${formData.isUrgent ? "text-rose-600 dark:text-rose-400" : "text-amber-500 dark:text-amber-400"}`} />
+                  <span className={formData.isUrgent ? "text-rose-900 dark:text-rose-200" : "text-slate-900 dark:text-white"}>
+                    Flag as Urgent / Safety Hazard (Emergency)
+                  </span>
+                  {formData.isUrgent && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 animate-pulse ml-1">
+                      Active Emergency
+                    </span>
+                  )}
+                </div>
+                <p className={`text-[11px] leading-relaxed ${formData.isUrgent ? "text-rose-800 dark:text-rose-300/90" : "text-slate-500 dark:text-slate-400"}`}>
+                  Check only for active hazards (e.g. sparking switchboard, active flooding, gas leak). Urgent requests alert the 24x7 control room immediately.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1755,21 +1776,20 @@ export default function NewComplaintPage() {
             <button
               type="submit"
               disabled={isSubmitting || isEditorActive}
-              className={`px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lg transition-all flex items-center ${
-                isEditorActive
-                  ? "bg-slate-300 text-slate-500 cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25 disabled:opacity-60"
-              }`}
+              className={`px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lg transition-all flex items-center ${isEditorActive
+                ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25 disabled:opacity-60"
+                }`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  <span>Submitting Request...</span>
+                  <span>Submitting...</span>
                 </>
               ) : isEditorActive ? (
                 <span>Switch to Public View to Submit</span>
               ) : (
-                <span>Submit Maintenance Complaint</span>
+                <span>Submit</span>
               )}
             </button>
           </div>

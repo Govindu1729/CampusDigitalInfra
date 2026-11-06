@@ -103,7 +103,8 @@ export default async function HomePage() {
                 type="text"
                 name="q"
                 placeholder="Enter Ticket ID (e.g. IITGN-2026-0001)..."
-                className="w-full px-3 py-1.5 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-xs sm:text-sm focus:outline-hidden bg-transparent font-medium"
+                style={{ backgroundColor: "transparent" }}
+                className="w-full px-3 py-1.5 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-xs sm:text-sm focus:outline-hidden !bg-transparent dark:!bg-transparent border-none outline-none ring-0 shadow-none font-medium"
                 required
               />
               <button

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { LIFECYCLE_CONFIG } from "@/config/lifecycle";
+import { checkAndRunArchivalSweep } from "@/lib/lifecycle/lifecycleService";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,14 +16,36 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Automatically sweep closed requests whose 3-day cooldown expired into secondary storage
+    try {
+      await checkAndRunArchivalSweep();
+    } catch (sweepErr) {
+      console.error("Auto archival sweep warning in /api/requests/my:", sweepErr);
+    }
+
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "active";
     const email = currentUser.email.toLowerCase().trim();
     const emailVariants = [email, currentUser.email, currentUser.email.toUpperCase()];
 
+    const now = new Date();
+    const threeDaysGraceThreshold = new Date(
+      now.getTime() - LIFECYCLE_CONFIG.ADMIN_CLOSED_REOPEN_GRACE_DAYS * 24 * 60 * 60 * 1000
+    );
+
+    // Filter condition for active operational requests:
+    // Either non-closed, or closed within the active 3-day reopen grace window
+    const activeWhereClause = {
+      requesterEmail: { in: emailVariants },
+      OR: [
+        { status: { not: "CLOSED" } },
+        { closedAt: { gt: threeDaysGraceThreshold } },
+      ],
+    };
+
     // -------------------------------------------------------------------------
-    // ON-DEMAND FETCH: ONLY query Secondary Archival DB when history is requested
-    // (Tickets only enter this database after their 3-day cooldown expires)
+    // ON-DEMAND FETCH: Query Secondary Archival DB when history is requested
+    // (Tickets enter this database after their 3-day cooldown expires)
     // -------------------------------------------------------------------------
     if (type === "history") {
       const archivedDbRequests = await prisma.archivedRequest.findMany({
@@ -67,21 +92,25 @@ export async function GET(req: NextRequest) {
         fromDb: "ARCHIVED_DB",
       }));
 
+      const activeCount = await prisma.maintenanceRequest.count({
+        where: activeWhereClause,
+      });
+
       return NextResponse.json({
         success: true,
         type: "history",
         historyRequests,
         count: historyRequests.length,
+        historyCount: historyRequests.length,
+        activeCount,
       });
     }
 
     // -------------------------------------------------------------------------
-    // DEFAULT: Fetch all requests in Primary DB (includes closed tickets within 3-day reopen cooldown)
+    // DEFAULT: Fetch active requests in Primary DB (includes closed tickets within 3-day reopen cooldown)
     // -------------------------------------------------------------------------
     const activeDbRequests = await prisma.maintenanceRequest.findMany({
-      where: {
-        requesterEmail: { in: emailVariants },
-      },
+      where: activeWhereClause,
       include: {
         department: true,
         assignedStaff: {
@@ -142,6 +171,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const historyCount = await prisma.archivedRequest.count({
+      where: {
+        requesterEmail: { in: emailVariants },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       type: "active",
@@ -153,6 +188,8 @@ export async function GET(req: NextRequest) {
       },
       activeRequests,
       count: activeRequests.length,
+      activeCount: activeRequests.length,
+      historyCount,
     });
   } catch (error) {
     console.error("Error fetching user requests:", error);
