@@ -4,31 +4,34 @@ import { AuthenticatedUser } from "./rbac";
 import { RoleCode } from "@/config/roles";
 import { sign, unsign } from "cookie-signature";
 
-const SESSION_COOKIE_NAME = "iitgn_staff_session_v3";
+const SESSION_COOKIE_NAME = "iitgn_staff_session_v4";
 const LEGACY_COOKIE_NAME = "iitgn_mrs_session";
 
 /**
  * Get the cookie signing secret from environment.
- * Throws if not configured in production.
+ * Fail closed: throws if not configured or too short.
+ * @param opts.required - if false, returns null instead of throwing (for optional contexts)
  */
-function getCookieSecret(): string {
+export function getCookieSecret(opts: { required?: boolean } = { required: true }): string | null {
   const secret = process.env.COOKIE_SECRET;
   if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("COOKIE_SECRET environment variable is required in production");
+    if (opts.required) {
+      throw new Error("COOKIE_SECRET environment variable is required");
     }
-    // Development fallback - NOT for production use
-    console.warn("⚠️ COOKIE_SECRET not set, using development fallback");
-    return "dev-secret-change-in-production-min-32-chars";
+    return null;
+  }
+  if (secret.length < 32) {
+    throw new Error("COOKIE_SECRET must be at least 32 characters");
   }
   return secret;
 }
 
 /**
  * Create a signed session cookie for the given email.
+ * Only callable from Route Handlers or Server Actions (where cookies() is writable).
  */
 export async function createSession(email: string): Promise<void> {
-  const secret = getCookieSecret();
+  const secret = getCookieSecret({ required: true }) as string;
   const signedEmail = sign(email, secret);
 
   const cookieStore = cookies();
@@ -37,12 +40,13 @@ export async function createSession(email: string): Promise<void> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24, // 24 hours (spec: stateless cookies must be short-lived)
   });
 }
 
 /**
  * Destroy the session cookie.
+ * Only callable from Route Handlers or Server Actions.
  */
 export async function destroySession(): Promise<void> {
   const cookieStore = cookies();
@@ -53,6 +57,8 @@ export async function destroySession(): Promise<void> {
 /**
  * Get the current authenticated user from the signed session cookie.
  * Verifies the cookie signature before looking up the user.
+ * DOES NOT mutate cookies - safe to call from Server Components.
+ * Stale/tampered cookies are cleared by middleware.
  */
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   const cookieStore = cookies();
@@ -62,14 +68,20 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     return null;
   }
 
-  const secret = getCookieSecret();
+  const secret = getCookieSecret({ required: false });
+
+  if (!secret) {
+    // No secret configured - treat as unauthenticated
+    return null;
+  }
 
   // Verify and unsign the cookie
   const email = unsign(signedEmail, secret);
 
   if (!email) {
-    // Cookie was tampered with or invalid signature - clear it
-    cookieStore.delete(SESSION_COOKIE_NAME);
+    // Cookie was tampered with or invalid signature
+    // DO NOT delete cookie here - getCurrentUser() runs in Server Components
+    // where cookies() is read-only. Middleware handles cleanup.
     return null;
   }
 
@@ -114,12 +126,10 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   }
 }
 
-// Backward compatibility exports
+// Backward compatibility exports (synchronous, for existing callers that can't await)
+// NOTE: These must only be called from Route Handlers or Server Actions
 export function setSessionUserCookie(email: string) {
-  // This is kept for backward compatibility but now creates a signed session
-  // Note: This is synchronous in the old API, but we can't await here
-  // Callers should migrate to async createSession()
-  const secret = getCookieSecret();
+  const secret = getCookieSecret({ required: true }) as string;
   const signedEmail = sign(email, secret);
 
   const cookieStore = cookies();
@@ -128,7 +138,7 @@ export function setSessionUserCookie(email: string) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24, // 24 hours
   });
 }
 
