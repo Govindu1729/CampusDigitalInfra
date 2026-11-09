@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { buildDepartmentFilter } from "@/lib/auth/rbac";
 import { sortComplaintsByOperationalPriority } from "@/lib/queue/sorting";
+import { rateLimit, clientKey, envInt } from "@/lib/security/rateLimit";
 import crypto from "crypto";
 
 // Map domains to department codes
@@ -121,6 +122,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Anti-abuse: cap public complaint submissions per IP.
+    const submitLimit = envInt("RATE_LIMIT_SUBMIT_MAX", 10);
+    const rl = rateLimit(clientKey(req, "submit"), submitLimit, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many submissions from this network. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
 
     // Anti-bot honeypot check
