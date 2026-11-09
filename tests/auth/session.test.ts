@@ -47,11 +47,13 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-// Mock Prisma
+// Mock Prisma - vi.hoisted ensures the mock exists before vi.mock is hoisted
+const { findUniqueMock } = vi.hoisted(() => ({ findUniqueMock: vi.fn() }));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
+      findUnique: findUniqueMock,
     },
   },
 }));
@@ -110,8 +112,7 @@ describe('Session Cookie Signing', () => {
     mockCookies.set(SESSION_COOKIE_NAME, validCookie + 'tampered');
     
     // Mock prisma to not find user (since cookie is invalid)
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(null);
+        findUniqueMock.mockResolvedValue(null);
     
     const user = await getCurrentUser();
     expect(user).toBeNull(); // Should reject tampered cookie
@@ -122,8 +123,7 @@ describe('Session Cookie Signing', () => {
     mockCookies.set(SESSION_COOKIE_NAME, testEmail);
     
     // Mock prisma to not find user (since cookie is invalid)
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(null);
+        findUniqueMock.mockResolvedValue(null);
     
     const user = await getCurrentUser();
     expect(user).toBeNull(); // Should reject unsigned cookie
@@ -135,8 +135,7 @@ describe('Session Cookie Signing', () => {
     mockCookies.set(SESSION_COOKIE_NAME, signedEmail);
     
     // Mock prisma to return our test user
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(mockUser);
+        findUniqueMock.mockResolvedValue(mockUser);
     
     const user = await getCurrentUser();
     expect(user).not.toBeNull();
@@ -150,8 +149,7 @@ describe('Session Cookie Signing', () => {
     mockCookies.set(SESSION_COOKIE_NAME, signedWithOtherSecret);
     
     // Mock prisma to not find user
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(null);
+        findUniqueMock.mockResolvedValue(null);
     
     const user = await getCurrentUser();
     expect(user).toBeNull(); // Should reject cookie signed with different secret
@@ -176,8 +174,7 @@ describe('Session Cookie Signing', () => {
     mockCookies.set(SESSION_COOKIE_NAME, validCookie + 'tampered');
     
     // Mock prisma to not find user
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(null);
+        findUniqueMock.mockResolvedValue(null);
     
     // This must NOT throw - the blocker was that getCurrentUser() called cookies().delete()
     // in a Server Component where cookies() is read-only
@@ -188,8 +185,7 @@ describe('Session Cookie Signing', () => {
     const signedEmail = sign(testEmail, secret);
     mockCookies.set(SESSION_COOKIE_NAME, signedEmail);
     
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue({ ...mockUser, active: false });
+        findUniqueMock.mockResolvedValue({ ...mockUser, active: false });
     
     const user = await getCurrentUser();
     expect(user).toBeNull();
@@ -199,8 +195,7 @@ describe('Session Cookie Signing', () => {
     const signedEmail = sign(testEmail, secret);
     mockCookies.set(SESSION_COOKIE_NAME, signedEmail);
     
-    const { prisma } = await import('@/lib/prisma');
-    prisma.user.findUnique.mockResolvedValue(null);
+        findUniqueMock.mockResolvedValue(null);
     
     const user = await getCurrentUser();
     expect(user).toBeNull();
